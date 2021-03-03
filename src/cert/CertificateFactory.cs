@@ -53,7 +53,8 @@ namespace cert
         }
 
         public static void GenerateSelfSignedCertificatePfx(string outputDir, X509Certificate2 issuerCertificate, string certificateName, string password, 
-            int keySize, DateTime expirationDate, byte[] serialNumber, string[] dnsNames, IPAddress[] ipAddresses = null, OidCollection oids = null)
+            int keySize, DateTime expirationDate, byte[] serialNumber, string[] dnsNames, 
+            IPAddress[] ipAddresses = null, OidCollection oids = null, X509KeyUsageExtension usages = null)
         {
             SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
 
@@ -76,8 +77,8 @@ namespace cert
 
             var request = new CertificateRequest(distinguishedName, rsa, HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1);
 
-            request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DataEncipherment | X509KeyUsageFlags.DigitalSignature | 
-                X509KeyUsageFlags.KeyEncipherment | X509KeyUsageFlags.KeyAgreement | X509KeyUsageFlags.NonRepudiation, true));
+            if (usages != null)
+                request.CertificateExtensions.Add(usages);
 
             if (oids != null )
                 request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(oids, true));
@@ -87,7 +88,9 @@ namespace cert
             var certificate = request.Create(issuerCertificate, new DateTimeOffset(DateTime.UtcNow), expirationDate, serialNumber);
             certificate.FriendlyName = certificateName;
 
-            var newCert = new X509Certificate2(certificate.Export(X509ContentType.Pfx, password), password, 
+            var certWithKey = certificate.CopyWithPrivateKey(rsa);
+
+            var newCert = new X509Certificate2(certWithKey.Export(X509ContentType.Pfx, password), password, 
                             X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
             var certBytes = newCert.Export(X509ContentType.Pfx, password);
 
