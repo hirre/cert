@@ -41,6 +41,9 @@ namespace cert
             var plainText = "this is a secret test string";
             var plainTextBytes = Encoding.UTF8.GetBytes(plainText);
 
+            // Sign the message
+            var signedData = loadedNewCert.GetRSAPrivateKey().SignData(plainTextBytes, HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1);
+
             // Encrypt the string (bytes)
             var encryptedBytes = loadedNewCert.GetRSAPublicKey().Encrypt(plainTextBytes, RSAEncryptionPadding.Pkcs1);
 
@@ -53,6 +56,8 @@ namespace cert
             Console.WriteLine(">>> THE SECRET STRING (ENCRYPTED):\n" + Encoding.UTF8.GetString(encryptedBytes));
             Console.WriteLine();
             Console.WriteLine(">>> THE SECRET STRING (DECRYPTED):\n" + decryptedPlainText);
+            Console.WriteLine();
+            Console.WriteLine(">>> SIGNATURE VERIFICATION OF DATA:\n" + loadedNewCert.GetRSAPublicKey().VerifyData(plainTextBytes, signedData, HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1));
 
             Console.ReadKey();
         }
