@@ -1,5 +1,5 @@
 # cert
-Certification generation for encryption/decryption purposes.
+Certification generation for different purposes.
 
 See Program.cs for examples.
 
