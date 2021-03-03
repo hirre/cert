@@ -8,7 +8,7 @@ namespace cert
 {
     public static class CertificateFactory
     {
-        public static void GenerateSelfSignedRootCaPfx(string outputDir, string certificateName, string password, Oid oid, DateTime expirationDate, 
+        public static void GenerateSelfSignedRootCaPfx(string outputDir, string certificateName, string password, int keySize, DateTime expirationDate, 
             string[] dnsNames, IPAddress[] ipAddresses = null)
         {
             SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
@@ -28,24 +28,18 @@ namespace cert
 
             X500DistinguishedName distinguishedName = new X500DistinguishedName($"CN={certificateName}");
 
-            using RSA rsa = RSA.Create(4096);
+            using RSA rsa = RSA.Create(keySize);
 
-            var request = new CertificateRequest(distinguishedName, rsa, HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1);
-
-            request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
-                new OidCollection { oid }, true));
-
-            request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, true, 1, true));
-            request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DataEncipherment | X509KeyUsageFlags.CrlSign |
-                X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.KeyEncipherment |
-                X509KeyUsageFlags.KeyAgreement | X509KeyUsageFlags.NonRepudiation, true));
+            var request = new CertificateRequest(distinguishedName, rsa, HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1);            
+            request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
             request.CertificateExtensions.Add(sanBuilder.Build());
 
-            var certificate = request.CreateSelfSigned(new DateTimeOffset(DateTime.UtcNow), new DateTimeOffset(expirationDate));
-            certificate.FriendlyName = certificateName;
+            var certificate = request.CreateSelfSigned(new DateTimeOffset(DateTime.UtcNow), new DateTimeOffset(expirationDate));            
+            certificate.FriendlyName = certificateName;            
 
-            var newCert = new X509Certificate2(certificate.Export(X509ContentType.Pfx, password), password, X509KeyStorageFlags.Exportable);
-            var certBytes = newCert.Export(X509ContentType.Pfx, password);
+            var newCert = new X509Certificate2(certificate.Export(X509ContentType.Pfx, password), password, 
+                            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
+            var certBytes = newCert.Export(X509ContentType.Pfx, password);            
 
             if (!Directory.Exists($"{outputDir}"))
             {
@@ -58,8 +52,8 @@ namespace cert
                 File.WriteAllBytes(fileName, certBytes);
         }
 
-        public static void GenerateSelfSignedCertificatePfx(string outputDir, X509Certificate2 issuerCertificate, string certificateName, string password, Oid oid, 
-            DateTime expirationDate, byte[] serialNumber, string[] dnsNames, IPAddress[] ipAddresses = null)
+        public static void GenerateSelfSignedCertificatePfx(string outputDir, X509Certificate2 issuerCertificate, string certificateName, string password, 
+            int keySize, DateTime expirationDate, byte[] serialNumber, string[] dnsNames, IPAddress[] ipAddresses = null, OidCollection oids = null)
         {
             SubjectAlternativeNameBuilder sanBuilder = new SubjectAlternativeNameBuilder();
 
@@ -78,23 +72,23 @@ namespace cert
 
             X500DistinguishedName distinguishedName = new X500DistinguishedName($"CN={certificateName}");
 
-            using RSA rsa = RSA.Create(4096);
+            using RSA rsa = RSA.Create(keySize);
 
-            var request = new CertificateRequest(distinguishedName, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var request = new CertificateRequest(distinguishedName, rsa, HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1);
 
-            request.CertificateExtensions.Add(
-                new X509KeyUsageExtension(X509KeyUsageFlags.DataEncipherment | X509KeyUsageFlags.KeyEncipherment | X509KeyUsageFlags.DigitalSignature, false));
+            request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DataEncipherment | X509KeyUsageFlags.DigitalSignature | 
+                X509KeyUsageFlags.KeyEncipherment | X509KeyUsageFlags.KeyAgreement | X509KeyUsageFlags.NonRepudiation, true));
 
-            request.CertificateExtensions.Add(
-            new X509EnhancedKeyUsageExtension(
-                new OidCollection { oid }, false));
+            if (oids != null )
+                request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(oids, true));
 
             request.CertificateExtensions.Add(sanBuilder.Build());
 
             var certificate = request.Create(issuerCertificate, new DateTimeOffset(DateTime.UtcNow), expirationDate, serialNumber);
             certificate.FriendlyName = certificateName;
 
-            var newCert = new X509Certificate2(certificate.Export(X509ContentType.Pfx, password), password, X509KeyStorageFlags.Exportable);
+            var newCert = new X509Certificate2(certificate.Export(X509ContentType.Pfx, password), password, 
+                            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
             var certBytes = newCert.Export(X509ContentType.Pfx, password);
 
             if (!Directory.Exists($"{outputDir}"))
