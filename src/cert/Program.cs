@@ -6,35 +6,46 @@ using System.Text;
 
 namespace cert
 {
-    class Program
+    /// <summary>
+    ///     Program to test certificate generation.
+    /// </summary>
+    public class Program
     {
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
-            var outputDir = AppDomain.CurrentDomain.BaseDirectory + Path.DirectorySeparatorChar + "keys";
+            var outputDir = AppDomain.CurrentDomain.BaseDirectory + Path.DirectorySeparatorChar + "certificates";
 
             // Generate Root CA and export it to a PFX file
-            CertificateFactory.GenerateSelfSignedRootCaPfx(outputDir, "RootCertCA", "test", 4096, DateTime.UtcNow.AddYears(40), 
+            var rootCert = CertificateFactory.GenerateRootCaPfx(outputDir, "RootCertCA", "Root certificate", "test", 4096, DateTime.UtcNow.AddYears(40), 
                 new[] { "localhost", Environment.MachineName});
 
             // Load Root CA from the PFX file
-            var rootCert = new X509Certificate2(outputDir + Path.DirectorySeparatorChar  + "RootCertCA.pfx", "test");
+            var loadedRootCert = new X509Certificate2(outputDir + Path.DirectorySeparatorChar  + "RootCertCA.pfx", "test");
 
-            // Use Root CA to generate a new certificate and export it to a PFX file
-            CertificateFactory.GenerateSelfSignedCertificatePfx(outputDir, rootCert, "SubCert", "test2", 4096, 
+            // Use Root CA to generate a new certificate for server TLS use cases and export the new certificate to a PFX file
+            var newCert = CertificateFactory.GenerateCertificatePfx(outputDir, loadedRootCert, "SubCert", "Sub certificate", "test2", 4096, 
                 DateTime.UtcNow.AddYears(1), new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A }, 
-                new[] { "localhost", Environment.MachineName });
+                new[] { "localhost", Environment.MachineName }, null, new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, 
+                new X509KeyUsageExtension(X509KeyUsageFlags.DataEncipherment | X509KeyUsageFlags.KeyEncipherment, true));
 
-            // Load the new certificate from the PFX file
-            var newCert = new X509Certificate2(outputDir + Path.DirectorySeparatorChar + "SubCert.pfx", "test2");
+            // Create a self signed certificate which we don't use below
+            var selfSignedCert = CertificateFactory.GenerateCertificatePfx(null, null, "SelfSignedCert", "Self signed certificate", "test3", 4096,
+                DateTime.UtcNow.AddYears(2), new byte[] { 0x12, 0x43, 0xCC, 0x54, 0x11, 0x87, 0x32, 0xFF, 0xBA, 0xEF },
+                new[] { "localhost", Environment.MachineName }, null, new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") },
+                new X509KeyUsageExtension(X509KeyUsageFlags.DataEncipherment | X509KeyUsageFlags.KeyEncipherment, true));
 
+            // Load the new certificate (issued by the Root CA) from the PFX file
+            var loadedNewCert = new X509Certificate2(outputDir + Path.DirectorySeparatorChar + "SubCert.pfx", "test2");
+
+            // Message to encrypt
             var plainText = "this is a secret test string";
             var plainTextBytes = Encoding.UTF8.GetBytes(plainText);
 
             // Encrypt the string (bytes)
-            var encryptedBytes = newCert.GetRSAPublicKey().Encrypt(plainTextBytes, RSAEncryptionPadding.Pkcs1);
+            var encryptedBytes = loadedNewCert.GetRSAPublicKey().Encrypt(plainTextBytes, RSAEncryptionPadding.Pkcs1);
 
             // Decrypt the encrypted string (bytes)
-            var decryptedBytes = newCert.GetRSAPrivateKey().Decrypt(encryptedBytes, RSAEncryptionPadding.Pkcs1);
+            var decryptedBytes = loadedNewCert.GetRSAPrivateKey().Decrypt(encryptedBytes, RSAEncryptionPadding.Pkcs1);
             var decryptedPlainText = Encoding.UTF8.GetString(decryptedBytes);
 
             Console.WriteLine(">>> THE SECRET STRING (PLAIN TEXT):\n" + plainText);
